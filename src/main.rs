@@ -2,81 +2,47 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::thread;
 
-/// Same encryption logic as server (must match!)
+/// Same crypto rules as server (must match exactly!)
 
-pub struct PlainBytes {
-    bytes: Vec<u8>,
-    pos: usize,
+fn send_message(stream: &mut TcpStream, msg: String, key: u8) {
+    let bytes = msg.into_bytes();
+    let encrypted: Vec<u8> = bytes.into_iter().map(|b| b ^ key).collect();
+
+    let len = encrypted.len() as u32;
+    stream.write_all(&len.to_be_bytes()).unwrap();
+    stream.write_all(&encrypted).unwrap();
 }
 
-pub struct EncryptedBytes {
-    bytes: Vec<u8>,
-    pos: usize,
-    key: u8,
-}
+fn receive_message(stream: &mut TcpStream, key: u8) -> String {
+    let mut len_buf = [0u8; 4];
+    stream.read_exact(&mut len_buf).unwrap();
+    let len = u32::from_be_bytes(len_buf) as usize;
 
-impl PlainBytes {
-    pub fn encrypt(self, key: u8) -> EncryptedBytes {
-        EncryptedBytes {
-            bytes: self.bytes,
-            pos: 0,
-            key,
-        }
-    }
-}
+    let mut payload = vec![0u8; len];
+    stream.read_exact(&mut payload).unwrap();
 
-impl EncryptedBytes {
-    pub fn read_all(mut self) -> Vec<u8> {
-        let mut out = Vec::new();
-        for b in self.bytes.drain(..) {
-            out.push(b ^ self.key);
-        }
-        out
-    }
-}
-
-fn encrypt_string(s: String, key: u8) -> Vec<u8> {
-    PlainBytes {
-        bytes: s.into_bytes(),
-        pos: 0,
-    }
-        .encrypt(key)
-        .read_all()
-}
-
-fn decrypt_bytes(bytes: Vec<u8>, key: u8) -> String {
-    let decrypted: Vec<u8> = bytes.into_iter().map(|b| b ^ key).collect();
+    let decrypted: Vec<u8> = payload.into_iter().map(|b| b ^ key).collect();
     String::from_utf8(decrypted).unwrap()
 }
 
 fn main() {
     let key = 42;
-    let mut stream = TcpStream::connect("127.0.0.1:7878")
-        .expect("Cannot connect");
+    let mut stream = TcpStream::connect("192.168.1.10:5555").unwrap();
 
     // Send username
-    let username = encrypt_string("alice".to_string(), key);
-    stream.write_all(&username).unwrap();
+    send_message(&mut stream, "alice".to_string(), key);
 
     // Reader thread
     let mut reader = stream.try_clone().unwrap();
-    thread::spawn(move || {
-        let mut buf = [0u8; 512];
-        loop {
-            if let Ok(size) = reader.read(&mut buf) {
-                if size > 0 {
-                    let msg = decrypt_bytes(buf[..size].to_vec(), key);
-                    println!("{}", msg);
-                }
-            }
-        }
+    thread::spawn(move || loop {
+        let msg = receive_message(&mut reader, key);
+        println!("{}", msg);
     });
 
-    // Send messages
+    // Writer loop
     loop {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
-        let encrypted = encrypt_string(input.trim().to_string(), key);
-        stream.write_all(&encrypted).unwrap();
+        send_message(&mut stream, input.trim().to_string(), key);
     }
 }
