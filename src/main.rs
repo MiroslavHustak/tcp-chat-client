@@ -2,15 +2,15 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::thread;
 
-/// Same crypto rules as server (must match exactly!)
+/// ===============================
+/// XOR Encryption (matches server)
+/// ===============================
 
 fn send_message(stream: &mut TcpStream, msg: String, key: u8) {
-    let bytes = msg.into_bytes();
-    let encrypted: Vec<u8> = bytes.into_iter().map(|b| b ^ key).collect();
-
-    let len = encrypted.len() as u32;
+    let bytes: Vec<u8> = msg.into_bytes().into_iter().map(|b| b ^ key).collect();
+    let len = bytes.len() as u32;
     stream.write_all(&len.to_be_bytes()).unwrap();
-    stream.write_all(&encrypted).unwrap();
+    stream.write_all(&bytes).unwrap();
 }
 
 fn receive_message(stream: &mut TcpStream, key: u8) -> String {
@@ -25,9 +25,13 @@ fn receive_message(stream: &mut TcpStream, key: u8) -> String {
     String::from_utf8(decrypted).unwrap()
 }
 
+/// ===============================
+/// Main client
+/// ===============================
+
 fn main() {
     let key = 42;
-    let mut stream = TcpStream::connect("192.168.1.10:5555").unwrap();
+    let mut stream = TcpStream::connect("192.168.1.10:5555").expect("Cannot connect");
 
     // Send username
     send_message(&mut stream, "alice".to_string(), key);
