@@ -32,12 +32,6 @@ const MAX_MESSAGE_SIZE: usize = 1_000_000;
 // ============================================================
 // Pure utility functions (no I/O, no side effects, no dependencies)
 // ============================================================
-// These functions are "pure" - they only transform data without
-// performing I/O or modifying global state. This makes them:
-// - Easy to test
-// - Easy to reason about
-// - Composable with other functions
-// ============================================================
 
 /// XOR transformation for encryption/decryption
 ///
@@ -66,7 +60,6 @@ fn is_quit_command(msg: &str) -> bool {
 
 /// Get server IP with default fallback
 ///
-/// Pattern matching approach (F# style) instead of if-else
 /// Returns default IP if input is empty, otherwise returns trimmed input
 fn get_default_ip(input: &str) -> &str {
     match input.trim().is_empty() {
@@ -77,10 +70,6 @@ fn get_default_ip(input: &str) -> &str {
 
 // ============================================================
 // I/O functions (depend only on utilities)
-// ============================================================
-// These functions handle input/output operations.
-// They're organized in order of dependency: simpler functions first,
-// more complex functions that use them later (F# style).
 // ============================================================
 
 /// Read message length from stream (first 4 bytes)
@@ -119,7 +108,6 @@ fn read_encrypted_bytes<R: Read>(reader: &mut R, len: usize) -> io::Result<Vec<u
 /// 4. Decrypting
 /// 5. Converting to UTF-8 string
 ///
-/// Uses functional pattern matching instead of if-else chains
 fn receive_message<R: Read>(reader: &mut R) -> io::Result<String> {
     let len = read_message_length(reader)?;
 
@@ -365,8 +353,6 @@ fn setup_username(stream: &mut TcpStream, console: &Sender<ConsoleEvent>) -> io:
 /// Returns Result<(), ()> where:
 /// - Ok(()) means continue processing
 /// - Err(()) means stop processing (quit command or send error)
-///
-/// This is a common functional pattern for early termination in iterators
 fn process_user_message(
     line: String,
     stream: &mut TcpStream,
@@ -395,7 +381,6 @@ fn process_user_message(
 
 /// Main message loop - reads user input and sends to server
 ///
-/// This is completely functional - no explicit loops or breaks!
 /// Uses iterator combinators to build a processing pipeline:
 ///
 /// 1. map_while: Stop if shutdown signal received
@@ -427,8 +412,6 @@ fn run_message_loop(
 
 // ============================================================
 // Main entry point
-// ============================================================
-// Orchestrates the entire application flow
 // ============================================================
 
 fn main() -> io::Result<()> {
